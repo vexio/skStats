@@ -1,0 +1,120 @@
+options:
+#! MESSAGES
+# Customize the messages
+	p: &c[&l!&c]&7
+	t: &7
+	h: &a
+	a: &4&lERROR&c
+	em: &4&lERROR&c Insufficient permissions
+	# Use <victim> and <attacker>
+	deathMessage-attack: &f<victim> &7was killed by &f<attacker>
+	deathMessage-projectile: &f<victim> &7was shot by &f<attacker>
+	deathMessage-knockedOff: &f<victim> &7was pushed off a ledge by &f<attacker>
+	deathMessage-unknown: &f<victim> &7died
+#! OPTIONS
+	customDeathmessages: true
+	# LAST ATTACKER TIME
+	# Determines when the "last attacker" variable is reset
+	# Use seconds
+	lastAttackerTime: 10
+#! STAT TRACKING
+# What Statistics do you want tracked?
+# If you want a specific statistic tracked, set the value to "true"
+# If you don't want a specific statistic tracked, set the value to "false"
+	kills: true
+	deaths: true
+	kdr: true
+	# For "kdr" to work, "kills" & "deaths" need to be set to "true"
+	arrowsShot: true
+	arrowsHit: true
+	arrowAccuracy: true
+	# For "arrowAccuracy" to work, "arrowsShot" & "arrowsHit" need to be set to "true"
+	damageDealt: true
+	damageTaken: true
+#============= functions
+function lastAttacker(victim: player, attacker: attacker)
+	set {lastAttacker::%{_victim}%} to "%{_attacker}%" parsed as player
+	wait ({@lastAttackerTime}) seconds
+	delete {lastAttacker::%{_victim}%}
+#============= events
+on death of player:
+	if "{@deaths}" = "true":
+		add 1 to {skStats.deaths::%victim%}
+	if {lastAttacker::%victim%} is a player:
+		if "{@kills}" = "true":
+			add 1 to {skStats.kills::%{lastAttacker::%victim%}%}
+		if "{@customDeathmessages}" = "true":
+			if damage cause is attack:
+				if "{@deathMessage-attack}" is not "" or " ":
+					set death message to ""
+					set {_deathMessage} to "{@deathMessage-attack}"
+					replace all "<victim>" with "%victim%" in {_deathMessage}
+					replace all "<attacker>" with "%{lastAttacker::%victim%}%" in {_deathMessage}
+					broadcast "%{_deathMessage}%"
+			else if "%damage cause%" = "projectile":
+				if "{@deathMessage-projectile}" is not "" or " ":
+					set death message to ""
+					set {_deathMessage} to "{@deathMessage-projectile}"
+					replace all "<victim>" with "%victim%" in {_deathMessage}
+					replace all "<attacker>" with "%{lastAttacker::%victim%}%" in {_deathMessage}
+					broadcast "%{_deathMessage}%"
+			else if damage cause is fall:
+				if "{@deathMessage-knockedOff}" is not "" or " ":
+					set death message to ""
+					set {_deathMessage} to "{@deathMessage-knockedOff}"
+					replace all "<victim>" with "%victim%" in {_deathMessage}
+					replace all "<attacker>" with "%{lastAttacker::%victim%}%" in {_deathMessage}
+					broadcast "%{_deathMessage}%"
+		delete {lastAttacker::%victim%}
+	else:
+		if "{@customDeathmessages}" = "true":
+			if "{@deathMessage-unknown}" is not "" or " ":
+				set death message to ""
+				set {_deathMessage} to "{@deathMessage-unknown}"
+				replace all "<victim>" with "%victim%" in {_deathMessage}
+				replace all "<attacker>" with "%{lastAttacker::%victim%}%" in {_deathMessage}
+				broadcast "%{_deathMessage}%"
+on damage of player:
+	if {lastAttacker::%victim%} is not set:
+		lastAttacker(victim, attacker)
+	else if {lastAttacker::%victim%} is set:
+		if {lastAttacker::%victim%} is not "%attacker%" parsed as player:
+			lastAttacker(victim, attacker)
+	set {_damage} to damage parsed as integer
+	if "{@damageTaken}" = "true"
+		add {_damage} to {skStats.damageTaken::%victim%}
+	if "{@damageDealt}" = "true":
+		add {_damage} to {skStats.damageDealt::%attacker%}
+	if "{@arrowsHit}" = "true":
+		"%damage cause%" = "projectile":
+			"%projectile%" = "arrow":
+				add 1 to {skStats.arrowsHit::%attacker%}
+on shoot:
+	"{@arrowsShot}" = "true":
+		"%projectile%" = "arrow":
+			shooter is player:
+				add 1 to {skStats.arrowsShot::%event-player%}
+#============= commands
+command /skstats [<text>]:
+	permission: skStats.admin
+	permission message: {@em} [skStats.admin]
+	trigger:
+		if arg 1 is "on" or "enable":
+			if {skStats.status} is not true:
+				send "{@p} {@h}skStats{@t} enabled."
+				set {skStats.status} to true
+			else:
+				send "{@a} skStats is already enabled"
+		else if arg 1 is "off" or "disable":
+			if {skStats.status} is not false:
+				send "{@p} {@h}skStats{@t} disabled."
+				set {skStats.status} to false
+			else:
+				send "{@a} skStats is already disabled"
+		else:
+			send "&cUsage: /skStats [on|off]"
+command /stats [<offline player>]:
+	permission: skStats.view
+	permission message: {@em} [skStats.view]
+	trigger:
+		if arg 1 is not set:
